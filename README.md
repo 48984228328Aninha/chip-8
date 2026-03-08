@@ -28,12 +28,41 @@ Este projeto consiste na implementação de uma Máquina Virtual (VM) capaz de e
 O núcleo do emulador está organizado na `struct CPU`, que reflete a arquitetura real do hardware:
 
 ```rust
-pub struct Cpu {
-    pub memory: [u8; 4096],     // 4KB de RAM
-    pub v: [u8; 16],            // 16 Registradores de 8 bits (V0-VF)
-    pub i: u16,                 // Registrador de índice
-    pub pc: u16,                // Program Counter (aponta para 0x200)
-    pub stack: [u16; 16],       // Pilha para sub-rotinas
-    pub sp: u16,                // Stack Pointer
-    // ... timers e display
+pub const SCREEN_WIDTH: usize = 64;
+pub const SCREEN_HEIGHT: usize = 32;
+
+const RAM_SIZE: usize = 4096;
+const NUM_REGS: usize = 16;
+const STACK_SIZE: usize = 16;
+const NUM_KEYS: usize = 16;
+const START_ADDR: u16 = 0x200;
+
+pub struct Emu {
+    pc: u16, //registrador especial: program counter
+    ram: [u8; RAM_SIZE],
+    screen: [bool; SCREEN_WIDTH * SCREEN_HEIGHT],
+    v_reg: [u8; NUM_REGS], //torna a busca + rápida
+    i_reg: u16, //outro registrador
+    sp: u16, //stack pointer, eh array de 16 valores que a cpu pode armazenar
+    stack: [u16; STACK_SIZE],
+    keys: [bool; NUM_KEYS], //serve p mapear os estados
+    dt: u8, //eh um temporizador delay timer que vai até 0
+    st: u8, //temporizador q ao chegar a 0, emite som
+}
+
+impl Emu {
+    pub fn new() -> Self {
+        Self {
+            pc: START_ADDR,
+            ram: [0; RAM_SIZE],
+            screen: [false; SCREEN_WIDTH * SCREEN_HEIGHT],
+            v_reg: [0; NUM_REGS],
+            i_reg: 0,
+            sp: 0,
+            stack: [0; STACK_SIZE],
+            keys: [false; NUM_KEYS],
+            dt: 0,
+            st: 0,
+        }
+    }
 }

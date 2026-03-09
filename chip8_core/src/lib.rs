@@ -86,7 +86,19 @@ impl Emu {
 
     pub fn tick(&mut self) {
         let op = self.fetch();
+        self.execute(op);
     }
+
+    fn execute(&mut self, op: u16) {
+        let digit1 = (op & 0xF000) >> 12;
+        let digit2 = (op & 0x0F00) >> 8;
+        let digit3 = (op & 0x00F0) >> 4;
+        let digit4 = op & 0x000F;
+
+        match (digit1, digit2, digit3, digit4) {
+            (_, _, _, _,) => unimplemented!("Unimplemented opcode: {}", op),
+                }
+    } 
 
     fn fetch(&mut self) -> u16 {
         let higher_byte = self.ram[self.pc as usize] as u16;

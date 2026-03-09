@@ -66,3 +66,8 @@ impl Emu {
         }
     }
 }
+```
+## Program Counter irá começar no endereço 0x200, o primeiro 512 será vazio e será armazenado os sprites. Sprites = gráficos bidimensionais
+
+![SCREEN](https://github.com/aquova/chip8-book/raw/master/src/img/font_diagram.png)
+## Cada pixel é um bit (branco/preto) e todo sprite no chip-8 tem 8 pixels de largura e cada linha tem 8 bits (1 byte). Os sprites foram escritos para todos os dígitos hexadecimais e precisam estar em algum lugar da RAM 

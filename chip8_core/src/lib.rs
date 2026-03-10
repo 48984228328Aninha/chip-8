@@ -95,9 +95,31 @@ impl Emu {
         let digit3 = (op & 0x00F0) >> 4;
         let digit4 = op & 0x000F;
 
+        //p timing
         match (digit1, digit2, digit3, digit4) {
+            (0, 0, 0, 0) => return,
             (_, _, _, _,) => unimplemented!("Unimplemented opcode: {}", op),
-                }
+                
+
+        //limpar a tela
+        (0, 0, 0xE, 0) => {
+            self.screen = [false; SCREEN_WIDTH * SCREEN_HEIGHT];
+        
+        },
+
+        //retorno
+        (0, 0, 0xE, 0xE) => {
+            let ret_addr = self.pop();
+            self.pc = ret_addr;
+        },
+
+        //salto
+        (1, _, _, _,) => {
+            let nnn = op & 0xFFF;
+            sel.pc = nnn;
+        }
+    }
+        
     } 
 
     fn fetch(&mut self) -> u16 {

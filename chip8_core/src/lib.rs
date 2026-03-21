@@ -1,3 +1,5 @@
+use rand::random;
+
 pub const SCREEN_WIDTH: usize = 64;
 pub const SCREEN_HEIGHT: usize = 32;
 
@@ -56,13 +58,12 @@ impl Emu {
         };
 
         new_emu.ram[..FONTSET_SIZE].copy_from_slice(&FONTSET);
-
         new_emu
     }
 
-    fn push(&mut self, val:u16) {
+    fn push(&mut self, val: u16) {
         self.stack[self.sp as usize] = val;
-        self.sp +=1;
+        self.sp += 1;
     }
 
     fn pop(&mut self) -> u16 {
@@ -89,45 +90,160 @@ impl Emu {
         self.execute(op);
     }
 
+    fn fetch(&mut self) -> u16 {
+        let higher_byte = self.ram[self.pc as usize] as u16;
+        let lower_byte = self.ram[(self.pc + 1) as usize] as u16;
+        let op = (higher_byte << 8) | lower_byte;
+        self.pc += 2;
+        op
+    }
+
     fn execute(&mut self, op: u16) {
         let digit1 = (op & 0xF000) >> 12;
         let digit2 = (op & 0x0F00) >> 8;
         let digit3 = (op & 0x00F0) >> 4;
         let digit4 = op & 0x000F;
 
-        //p timing
         match (digit1, digit2, digit3, digit4) {
             (0, 0, 0, 0) => return,
-            (_, _, _, _,) => unimplemented!("Unimplemented opcode: {}", op),
+            (0, 0, 0xE, 0) => {
+                self.screen = [false; SCREEN_WIDTH * SCREEN_HEIGHT];
+            }
+            (0, 0, 0xE, 0xE) => {
+                let ret_addr = self.pop();
+                self.pc = ret_addr;
+            },
+            (1, _, _, _) => {
+                let nnn = op & 0xFFF;
+                self.pc = nnn;
+            },
+            (2, _, _, _) => {
+                let nnn = op & 0xFFF;
+                self.push(self.pc);
+                self.pc = nnn;
+            },
+            (3, _, _, _) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                if self.v_reg[x] == nn {
+                    self.pc += 2;
+                }
+            },
+            (4, _, _, _) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                if self.v_reg[x] != nn {
+                    self.pc += 2;
+                }
+            },
+            (5, _, _, 0) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                if self.v_reg[x] == self.v_reg[y] {
+                    self.pc += 2;
+                }
+            },
+
+            (6, _, _, _) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                self.v_reg[x] = nn;
+            },
+
+            (7, _, _, _) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                self.v_reg[x] = self.v_reg[x].wrapping_add(nn);
+            },
+
+            (8, _, _, _,) => {
+                let x = digit2 as usize;
+                let y = digit2 as usize;
+                self.v_reg[x] = self.v_reg[y];
+            },
+
+            (8, _, _, 1) => {
+                let x = digit2 as usize;
+                let y = digit2 as usize;
+                self.v_reg[x] |= self.v_reg[y];
+            },
+
+            (8, _, _, 4) => {
+                let x = digit2 as usize;
+                let y = digit2 as usize;
                 
+                let (new_vx, carry) = self.v_reg[x].overflowing_add(self.v_reg[y]);
+                let new_vf = if carry { 1 } else { 0 };
 
-        //limpar a tela
-        (0, 0, 0xE, 0) => {
-            self.screen = [false; SCREEN_WIDTH * SCREEN_HEIGHT];
-        
-        },
+                self.v_reg[x] = new_vx;
+                self.v_reg[y] = new_vf;
+            },
 
-        //retorno
-        (0, 0, 0xE, 0xE) => {
-            let ret_addr = self.pop();
-            self.pc = ret_addr;
-        },
+            (8, _, _, 5) => {
+                let x = digit2 as usize;
+                let y = digit2 as usize;
 
-        //salto
-        (1, _, _, _,) => {
-            let nnn = op & 0xFFF;
-            sel.pc = nnn;
+                let (new_vx, borrow) = self.v_reg[x].overflowing_add(self.v_reg[y]);
+                let new_vf = if borrow { 1 } else { 0 };
+
+                self.v_reg[x] = new_vx;
+                self.v_reg[y] = new_vf;
+            },
+
+            (8, _, _, 6) => {
+                let x = digit2 as usize;
+                let lsb = self.v_reg[x] & 1;
+                self.v_reg[x] >>= 1;
+                self.v_reg[0xF] = lsb;
+            },
+
+            (8, _, _, 7) => {
+                let x = digit2 as usize;
+                let y = digit2 as usize;
+
+                let (new_vx, borrow) = self.v_reg[y].overflowing_sub(self.v_reg[x]);
+                let new_vf = if borrow { 1 } else { 0 };
+
+                self.v_reg[x] = new_vx;
+                self.v_reg[0xF] = new_vf;
+            },
+
+            (8, _, _, 0xE) => {
+                let x = digit2 as usize;
+                let msb = (self.v_reg[x] >> 7) & 1;
+                self.v_reg[x] <<= 1;
+                self.v_reg[0xF] = msb;
+            }
+
+            (9, _, _, 0) => {
+                let x = digit2 as usize;
+                let y = digit3 as usize;
+                if self.v_reg[x] != self.v_reg[y] {
+                    self.pc += 2;
+                }
+            },
+
+            (0xA, _, _, _,) => {
+                let nnn = op & 0xFFF;
+                self.i_reg = nnn;
+            },
+
+            (0xB, _, _, _,) => {
+                let nnn = op & 0xFFF;
+                self.pc = (self.v_reg[0] as u16) + nnn;
+            },
+
+            (0xC, _, _, _,) => {
+                let x = digit2 as usize;
+                let nn = (op & 0xFF) as u8;
+                let rng: u8 = random();
+                self.v_reg[x] = rng & nn;
+            }
+            
+            
+
+            (_, _, _, _) => unimplemented!("Unimplemented opcode: {:04X}", op),
         }
-    }
-        
-    } 
-
-    fn fetch(&mut self) -> u16 {
-        let higher_byte = self.ram[self.pc as usize] as u16;
-        let lower_byte = self.ram[(self.pc + 1) as usize] as u16;
-        let op = (higher_byte << 8)|lower_byte;
-        self.pc += 2;
-        op
     }
 
     pub fn tick_timers(&mut self) {
@@ -136,12 +252,10 @@ impl Emu {
         }
 
         if self.st > 0 {
-            if self.st == 1 {}
-
+            if self.st == 1 {
+                // Beep!
+            }
             self.st -= 1;
         }
     }
-
-    
-        
-    }
+}
